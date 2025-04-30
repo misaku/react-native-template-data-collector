@@ -1,6 +1,6 @@
 {
   "name": "react-native-template-data-collector",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Clean and minimalist React Native template for a quick start with TypeScript with support kitkat.",
   "scripts": {
     "test": "exit 0",
