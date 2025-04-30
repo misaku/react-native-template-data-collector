@@ -1,0 +1,76 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    ext {
+        buildToolsVersion = "30.0.3"      // Atualize para uma versão estável mais recente
+        minSdkVersion = 19
+        compileSdkVersion = 30
+        targetSdkVersion = 30
+        ndkVersion = "21.4.7075529"      // Mantenha compatível com 2021
+        kotlinVersion = "1.5.31"
+
+
+    }
+    repositories {
+        google()                         // Repositório para dependências do Android
+        mavenCentral()                   // Substituto do jcenter()
+    }
+    dependencies {
+        classpath("com.android.tools.build:gradle:4.2.2") // Compatível com Gradle 6.9
+
+        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+
+        // if you don't use any other Firebase component in your project
+        classpath 'com.google.android.gms:strict-version-matcher-plugin:1.2.1'
+        /*
+        // If you have Firebase integrated already
+        classpath 'com.google.gms:google-services:4.3.3'
+        */
+    }
+}
+
+allprojects {
+    tasks.withType(JavaCompile).configureEach {
+      options.compilerArgs << "-Xlint:deprecation" << "-Xlint:unchecked"
+    }
+    repositories {
+        mavenLocal() // Repositórios locais
+        maven {
+            // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+            url("$rootDir/../node_modules/react-native/android")
+        }
+        maven {
+            // Android JSC is installed from npm
+            url("$rootDir/../node_modules/jsc-android/dist")
+        }
+
+        google()
+        mavenCentral()
+        maven { url 'https://www.jitpack.io' }
+        maven { url "https://maven.google.com" }
+    }
+}
+configurations.all {
+    resolutionStrategy {
+        force 'com.squareup.okhttp3:okhttp:3.12.12'
+    }
+}
+configurations.configureEach {
+  resolutionStrategy.eachDependency { details ->
+    if (details.requested.group == 'org.jetbrains.kotlin' &&
+      details.requested.name.contains('kotlin-stdlib')) {
+      details.useVersion '1.5.31'
+    }
+    if (details.requested.group == 'com.facebook.react' && details.requested.name == 'react-native') {
+      details.useVersion "0.63.5"
+    }
+  }
+}
+subprojects {
+    afterEvaluate {
+        plugins.withId("org.jetbrains.kotlin.android") {
+            // Supõe que Kotlin já é carregado no build principal.
+            logger.lifecycle("Kotlin plugin carregado aqui: ${project.name}")
+        }
+    }
+}

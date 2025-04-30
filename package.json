@@ -1,0 +1,55 @@
+{
+  "name": "react-native-template-data-collector",
+  "version": "0.0.5",
+  "description": "Clean and minimalist React Native template for a quick start with TypeScript with support kitkat.",
+  "scripts": {
+    "test": "exit 0",
+    "prepublishOnly": "npm --no-git-tag-version version $TRAVIS_TAG",
+    "release": "release-it"
+  },
+  "files": [
+    "template",
+    "template.config.js"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/misaku/react-native-template-data-collector.git"
+  },
+  "keywords": [
+    "react-native",
+    "typescript",
+    "jest",
+    "template",
+    "boilerplate"
+  ],
+  "author": "Michel dos Santos Kuguio <michel.kuguio@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/misaku/react-native-template-data-collector/issues"
+  },
+  "homepage": "https://github.com/misaku/react-native-template-data-collector#readme",
+  "devDependencies": {
+    "@commitlint/cli": "^13.1.0",
+    "@commitlint/config-conventional": "^13.1.0",
+    "@release-it/conventional-changelog": "^3.2.0",
+    "husky": "^7.0.1",
+    "release-it": "^14.11.5"
+  },
+  "release-it": {
+    "git": {
+      "commitMessage": "chore: release ${version}",
+      "tagName": "v${version}"
+    },
+    "npm": {
+      "publish": true
+    },
+    "github": {
+      "release": true
+    },
+    "plugins": {
+      "@release-it/conventional-changelog": {
+        "preset": "angular"
+      }
+    }
+  }
+}

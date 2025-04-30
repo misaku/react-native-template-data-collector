@@ -1,0 +1,243 @@
+image: node:14
+
+stages:
+  - commit
+  - install
+  - test
+  - review
+  - report
+  - gmud
+  - build
+  - tags
+  - upload
+  - deploy
+
+default:
+  cache:
+    key: ${CI_PROJECT_NAME}-${CI_COMMIT_REF_SLUG}
+    paths:
+      - node_modules
+      - .yarn/cache
+      - .yarn/unplugged
+      - android/.gradle
+      - android/app/build
+    policy: pull-push
+
+
+commitlint:
+  image: $CIKNIFE_IMAGE
+  stage: commit
+  script: ci-knife commitlint
+  only:
+    - branches
+  except:
+    - master
+    - main
+    - tags
+
+install:
+  stage: install
+  script:
+    - yarn install --frozen-lockfile
+
+test:
+  stage: test
+  script:
+    - echo fs.inotify.max_user_watches=524288 | tee -a /etc/sysctl.conf && sysctl -p
+    - yarn test:ci
+  coverage: /All files[^|]*\|[^|]*\s+([\d\.]+)/
+  variables:
+    API_BASE_URL: $API_BASE_URL_STAGE
+    API_TOKEN: $API_TOKEN_STAGE
+  dependencies:
+    - install
+  artifacts:
+    when: always
+    paths:
+      - coverage
+    expire_in: 1 day
+
+review:
+  image: $CIKNIFE_IMAGE
+  stage: review
+  script: ci-knife mr-review
+  only:
+    - merge_requests
+
+#merge_coverage:
+#  stage: merge_coverage
+#  cache:
+#    <<: *global_cache
+#    policy: pull
+#  script:
+#    - echo "Consolidando relatórios de cobertura"
+#    - npm run merge:coverage # Consolidando os relatórios Jest e Cypress
+#  dependencies:
+#    - test_jest
+#    - test_cypress
+#  artifacts:
+#    paths:
+#      - coverage
+#    expire_in: 1 day
+
+.sonar_base:
+  stage: report
+  image: $CIKNIFE_IMAGE
+  script:
+    - export PACKAGE_VERSION=v$(cat package.json | grep version | head -1 | awk '{ print $2 }' | sed 's/[",]//g' | tr -d '[[:space:]]')
+    - ci-knife sonar-scanner
+  dependencies:
+    - test
+
+sonar:
+  extends: .sonar_base
+  only:
+    - tags
+
+sonar_staging:
+  extends: .sonar_base
+  variables:
+    GIT_DEPTH: 0
+    SONAR_ANALYSIS_MODE: publish
+  script:
+    - export SONAR_URL=$STAGE_SONAR_URL
+    - export SONAR_TOKEN=$STAGE_SONAR_TOKEN
+    - ci-knife sonar-scanner
+  allow_failure: true
+  only:
+    - branches
+  when: always
+  except:
+    - tags
+
+fortify:
+  stage: report
+  image: $CIKNIFE_IMAGE
+  script:
+    - ci-knife security-scanner
+  dependencies:
+    - test
+  only:
+    - tags
+
+create_release:
+  image: $CIKNIFE_IMAGE
+  stage: tags
+  allow_failure: false
+  script:
+    - ci-knife create-release -n
+  only:
+    - master
+    - main
+  except:
+    changes:
+      - CHANGELOG.md
+  when: manual
+
+create_gmud:
+  image: $CIKNIFE_IMAGE
+  stage: gmud
+  script:
+    - ci-knife create-gmud
+  allow_failure: true
+  only:
+    - tags
+  when: manual
+  dependencies:
+    - sonar
+
+.default_build:
+  stage: build
+  image: reactnativecommunity/react-native-android:5.1
+  script:
+    - echo "Iniciando Build no ambiente:"; echo " $CI_ENVIRONMENT_NAME"
+    - cd android
+    - ./gradlew clean
+    - ./gradlew assembleRelease # Cria o APK
+  artifacts:
+    paths:
+      - android/app/build/outputs/apk/release/app-release.apk
+    expire_in: 1 week
+  dependencies:
+    - install
+  when: manual
+
+build_staging:
+  extends: .default_build
+  environment:
+    name: stage
+  variables:
+    NODE_ENV: 'staging'
+    API_BASE_URL: $API_BASE_URL_STAGE
+    API_TOKEN: $API_TOKEN_STAGE
+  only:
+    - stage
+    - branches
+
+build_production:
+  extends: .default_build
+  allow_failure: true
+  environment:
+    name: production
+  variables:
+    NODE_ENV: 'production'
+    CHECK_GMUD_APPROVED: "true"
+    API_BASE_URL: $API_BASE_URL_PROD
+    API_TOKEN: $API_TOKEN_PROD
+  dependencies:
+    - install
+    - create_gmud
+  only:
+    - tags
+
+upload_to_package_registry:
+  stage: upload
+  image: cdue/curl-zip-jq:latest
+  script:
+    - echo "Subindo APK para o Registry de Pacotes do GitLab"
+    - apk_file="android/app/build/outputs/apk/release/app-release.apk"
+    - project_name=$(jq -r .name package.json)
+    - package_version=$(jq -r .version package.json)
+    - versioned_apk_file="$project_name.v$package_version.apk"
+    - zip_file="$project_name.v$package_version.zip"
+    - mv $apk_file $versioned_apk_file
+    - zip $zip_file $versioned_apk_file
+    - DIRECTORY_FILE_PACKAGE="$CI_API_V4_URL/projects/$CI_PROJECT_ID/packages/generic/${project_name}-prod/$package_version/$zip_file"
+    - echo $DIRECTORY_FILE_PACKAGE
+    - |
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" --upload-file $zip_file $DIRECTORY_FILE_PACKAGE
+  dependencies:
+    - build_production
+    - create_gmud
+  only:
+    - tags
+  when: manual
+
+
+#deploy_to_prod:
+#  stage: deploy
+#  image: ubuntu:latest
+#  script:
+#    - chmod +x ./scripts/deploy.sh
+#    - ./scripts/deploy.sh
+#  only:
+#    - master
+#  environment:
+#    name: production
+#  dependencies:
+#    - build_production
+#    - create_gmud
+#    - upload_to_package_registry
+#  when: manual
+#
+#rollback_prod:
+#  stage: deploy
+#  image: ubuntu:latest
+#  script:
+#    - chmod +x ./scripts/rollback.sh
+#    - ./scripts/rollback.sh
+#  when: manual # Forçar rollback manual
+#  environment:
+#    name: production
+#  only:
+#   - master
