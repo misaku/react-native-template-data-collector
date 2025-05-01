@@ -1,5 +1,5 @@
 apply plugin: "com.android.application"
-apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
+
 import com.android.build.OutputFile
 
 /**
@@ -222,8 +222,7 @@ dependencies {
         exclude group:'com.facebook.flipper'
     }
 
-    implementation project(':react-native-config')
-    implementation(project(':react-native-device-info')) {
+  implementation(project(':react-native-device-info')) {
     exclude group: 'com.google.android.gms'
   }
     if (enableHermes) {
