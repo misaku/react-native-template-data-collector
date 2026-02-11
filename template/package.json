@@ -22,7 +22,7 @@
     "@react-navigation/native": "6.1.18",
     "@react-navigation/native-stack": "6.11.0",
     "@types/color": "4.2.0",
-    "axios": "1.8.4",
+    "axios": "1.13.5",
     "color": "3.2.1",
     "date-fns": "^4.1.0",
     "json5": "^2.2.3",
